@@ -23,7 +23,7 @@
     <input id="seek" type="range" min="0" max="1000" value="0">
     <span id="time">0:00 / 0:57</span>
     <button id="fs" class="alt">⛶ Full screen</button>
-    <button id="rec" class="alt">⬇ Save as video (.webm)</button>
+    <button id="rec" class="alt" title="Keep this tab open and in front for the whole video">⬇ Save as video (.webm)</button>
   </div>
 </div>
 <script>
@@ -515,7 +515,7 @@ $('play').onclick=()=>{
 $('seek').oninput=e=>{t=e.target.value/1000*DUR;sceneIdx=-1;prevT=t;prevBeat=Math.floor(t*2)-1;};
 
 /* ---------- record to .webm ---------- */
-let rec=null,chunks=[];
+let rec=null,chunks=[],wake=null;
 function finishRec(){if(rec&&rec.state==='recording')rec.stop();}
 $('rec').onclick=()=>{
   if(!window.MediaRecorder){alert('Recording is not supported in this browser.');return;}
@@ -524,10 +524,18 @@ $('rec').onclick=()=>{
   stream.addTrack(recDest.stream.getAudioTracks()[0]);
   rec=new MediaRecorder(stream,{mimeType:'video/webm',videoBitsPerSecond:5e6});
   rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
-  rec.onstop=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
-    a.download='why-puffins-hate-seagulls.webm';a.click();$('rec').textContent='⬇ Save as video (.webm)';rec=null;};
-  t=0;sceneIdx=-1;prevT=0;prevBeat=-1;playing=true;AC.resume();
-  $('play').textContent='❚❚ Pause';$('rec').textContent='● Recording… (0:57)';rec.start();
+  rec.onstop=()=>{
+    const url=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+    const a=document.createElement('a');a.href=url;a.download='why-puffins-hate-seagulls.webm';
+    document.body.appendChild(a);a.click();                      // try to download automatically
+    let box=$('dl');if(!box){box=document.createElement('div');box.id='dl';box.style.cssText='margin-top:12px;padding:14px;background:#1f3a2a;border-radius:10px;font-size:16px';document.querySelector('.bar').after(box);}
+    box.innerHTML='✅ Your video is ready! If it did not download by itself, <a style="color:#ffc94a;font-weight:700" href="'+url+'" download="why-puffins-hate-seagulls.webm">click here to download it</a>.';
+    $('rec').textContent='⬇ Save as video (.webm)';rec=null;
+    try{if(wake){wake.release();wake=null;}}catch(e){}
+  };  t=0;sceneIdx=-1;prevT=0;prevBeat=-1;playing=true;AC.resume();
+  $('play').textContent='❚❚ Pause';$('rec').textContent='● Recording… (0:57)';rec.start(1000);
+  try{if(navigator.wakeLock)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});}catch(e){}
+  const old=$('dl');if(old)old.remove();
 };
 function toggleFS(){
   const w=document.querySelector('.wrap');
